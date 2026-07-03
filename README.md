@@ -38,7 +38,7 @@ Well, maybe there is a good reason that this isn't so widespread. In any case, I
 - Only four different screws/nuts!
 - A fully 3D printable case
 - A compact form factor
-- ... all this for around $20!
+- ... all this for $15!
 
 ## Assembly + Usage
 
@@ -46,20 +46,20 @@ Assembly video coming soon! For now, please reference the CAD design to see how 
 
 ## Bill of Materials
 
-| Part         | Link                                                               | Price  | Notes                                                                                             |
-|--------------|--------------------------------------------------------------------|--------|---------------------------------------------------------------------------------------------------|
-| Nema 11      | https://www.aliexpress.us/item/2255799884723806.html               | $5.58  | 11HS3410                                                                                          |
-| Motor Driver | https://www.aliexpress.us/item/3256805074646808.html               | $0.99  | TMC2209                                                                                           |
-| Syringe      | https://www.chipquik.com/store/product_info.php?products_id=901015 | $0.00  | Chip Quik's CQ5CC - this is what their 5mL solder paste tube comes in (getting for other project) |
-| M5x50 SHCS   | https://www.aliexpress.us/item/2255800598515019.html               | $0.99  | For plunger + hinge                                                                               |
-| M2.5x16 SHCS | https://www.aliexpress.us/item/2255800598515019.html               | $0.99  | For motor + clamp                                                                                 |
-| M5 Nut       | https://www.aliexpress.us/item/2255800416538696.html               | $0.99  | For hinge + gear                                                                                  |
-| M2.5 Nut     | https://www.aliexpress.us/item/2255800416538696.html               | $0.99  | For clamp                                                                                         |
-| Magnets      | https://www.aliexpress.us/item/3256809809310037.html               | $0.99  | 4x2mm - required over ten for the PCB-bed mount standoffs                                         |
-| Adhesive     | https://www.aliexpress.us/item/3256809785876209.html               | $0.99  | For attaching the mount to the 3D printer                                                         |
-| Sum          |                                                                    | $12.51 |                                                                                                   |
-| Grand Total  |                                                                    | $13.54 |                                                                                                   |
-
+| Part         | Link                                                                    | Price  | Notes                                                     |
+|--------------|-------------------------------------------------------------------------|--------|-----------------------------------------------------------|
+| Nema 11      | https://www.aliexpress.us/item/2255799884723806.html                    | $5.58  | 11HS3410                                                  |
+| Motor Driver | https://www.aliexpress.us/item/3256805074646808.html                    | $0.99  | TMC2209                                                   |
+| M5x50 SHCS   | https://www.aliexpress.us/item/2255800598515019.html                    | $0.99  | For plunger + hinge                                       |
+| M2.5x16 SHCS | https://www.aliexpress.us/item/2255800598515019.html                    | $0.99  | For motor + clamp                                         |
+| M5 Nut       | https://www.aliexpress.us/item/2255800416538696.html                    | $0.99  | For hinge + gear                                          |
+| M2.5 Nut     | https://www.aliexpress.us/item/2255800416538696.html                    | $0.99  | For clamp                                                 |
+| Magnets      | https://www.aliexpress.us/item/3256809809310037.html                    | $0.99  | 4x2mm - required over ten for the PCB-bed mount standoffs |
+| Adhesive     | https://www.aliexpress.us/item/3256809785876209.html                    | $0.99  | For attaching the mount to the 3D printer                 |
+| Solder Paste | https://www.amazon.com/SMD291AX-REWORK-SOLDER-PASTE-CLEAN/dp/B0186IM0P0 | $14.99 | Any solder paste in Chip Quik's 5CC syringe               |
+| Sum          |                                                                         | $27.50 |                                                           |
+| Grand Total  |                                                                         | $29.77 |                                                           |
+| Paste Owned: |                                                                         | $13.54 |                                                           |
 
 ## Contributing
 
