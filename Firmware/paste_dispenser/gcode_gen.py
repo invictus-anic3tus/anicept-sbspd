@@ -2,8 +2,19 @@
 gcode_gen.py
 Convert an ordered list of Pad objects into a Klipper-compatible G-code file.
 
-Motion:    all relative (G91) until the final park move
+Motion:    all relative (G91) for the entire file until the final park move
 Dispenser: triggered via RUN_SHELL_COMMAND per pad (single blocking call each time)
+
+Z notes
+-------
+The printer is in G91 (relative) mode throughout. z_travel and z_dispense in
+the config are *absolute* positions relative to the manual tip home, so the
+correct relative moves are fixed deltas derived once from those two values:
+
+  raise delta = z_travel   - z_dispense   (always positive, e.g. 5.0 - (-0.05) = 5.05)
+  lower delta = z_dispense - z_travel     (always negative, e.g. -0.05 - 5.0  = -5.05)
+
+XY tracking is still needed to compute relative deltas between pads.
 """
 
 from __future__ import annotations
@@ -31,11 +42,17 @@ class GCodeBuilder:
     def __init__(self, cfg: DispenserConfig):
         self.cfg = cfg
         self.lines: list[str] = []
-        # Track position so we can emit relative deltas correctly.
-        # All Z values are treated as absolute targets; move() computes the delta.
+
+        # XY position tracking for relative move deltas.
+        # Origin (0, 0) is the manually-jogged priming pad position.
         self._cx = 0.0
         self._cy = 0.0
-        self._cz = 0.0
+
+        # Fixed Z deltas, computed once from config.
+        # The nozzle starts at the priming pad (Z = 0 in relative terms),
+        # which we treat as being at z_travel height before the first lower.
+        self._z_raise = cfg.z_travel - cfg.z_dispense   # e.g.  5.0 - (-0.05) =  5.05
+        self._z_lower = cfg.z_dispense - cfg.z_travel   # e.g. -0.05 - 5.0    = -5.05
 
     # ── Primitives ────────────────────────────────────────────────────────────
 
@@ -45,37 +62,21 @@ class GCodeBuilder:
     def raw(self, line: str):
         self.lines.append(line)
 
-    def move(self, x: float = None, y: float = None, z: float = None,
-             speed: float = None, comment: str = ""):
-        """
-        Emit a G0 rapid move. All axes are absolute targets; the delta vs.
-        current tracked position is computed and emitted (G91 mode on printer).
-        Skips axes that haven't changed.
-        """
-        parts = ["G0"]
-        if x is not None:
-            dx = x - self._cx
-            if dx != 0:
-                parts.append(f"X{_f(dx)}")
-            self._cx = x
-        if y is not None:
-            dy = y - self._cy
-            if dy != 0:
-                parts.append(f"Y{_f(dy)}")
-            self._cy = y
-        if z is not None:
-            dz = z - self._cz
-            if dz != 0:
-                parts.append(f"Z{_f(dz)}")
-            self._cz = z
-        if speed is not None:
-            parts.append(f"F{int(speed)}")
+    def move_xy(self, x: float, y: float, speed: float, comment: str = ""):
+        """Emit a G0 XY move using relative deltas from current tracked position."""
+        dx = x - self._cx
+        dy = y - self._cy
+        self._cx = x
+        self._cy = y
 
-        # Don't emit a bare "G0" with no axes — that's a no-op
-        if len(parts) == 1:
-            return
-        # Don't emit "G0 F..." with no motion — use M220 or just skip
-        if len(parts) == 2 and parts[1].startswith("F"):
+        parts = ["G0"]
+        if dx != 0:
+            parts.append(f"X{_f(dx)}")
+        if dy != 0:
+            parts.append(f"Y{_f(dy)}")
+        parts.append(f"F{int(speed)}")
+
+        if len(parts) == 2:   # only "G0 F..." — no actual motion, skip
             return
 
         line = " ".join(parts)
@@ -97,13 +98,17 @@ class GCodeBuilder:
             line += f"   ; {comment}"
         self.lines.append(line)
 
-    # ── Z helpers ─────────────────────────────────────────────────────────────
+    # ── Z helpers — always correct fixed deltas in G91 ────────────────────────
 
     def raise_to_travel(self, comment: str = "raise to travel height"):
-        self.move(z=self.cfg.z_travel, speed=self.cfg.travel_speed, comment=comment)
+        self.lines.append(
+            f"G0 Z{_f(self._z_raise)} F{int(self.cfg.travel_speed)}   ; {comment}"
+        )
 
     def lower_to_dispense(self, comment: str = "lower to dispense height"):
-        self.move(z=self.cfg.z_dispense, speed=self.cfg.travel_speed, comment=comment)
+        self.lines.append(
+            f"G0 Z{_f(self._z_lower)} F{int(self.cfg.travel_speed)}   ; {comment}"
+        )
 
     # ── Dispenser helpers ─────────────────────────────────────────────────────
 
@@ -123,21 +128,24 @@ class GCodeBuilder:
         self.comment(f" Solder paste dispenser — {datetime.now():%Y-%m-%d %H:%M}")
         self.comment(f" Source  : {os.path.basename(c.gerber_file)}")
         self.comment(f" Pads    : {pad_count}")
-        self.comment(f" Z       : travel={c.z_travel}  dispense={c.z_dispense}")
-        self.comment(f" Volumes : dot={c.dot_volume_ul} µL  drag={c.drag_ul_per_mm} µL/mm")
+        self.comment(f" Z       : travel={c.z_travel}  dispense={c.z_dispense}"
+                     f"  (raise={_f(self._z_raise)}, lower={_f(self._z_lower)})")
+        self.comment(f" Volumes : dot={c.dot_volume_ul} uL  drag={c.drag_ul_per_mm} uL/mm")
         self.comment("=" * 62)
         self.comment()
-        self.comment("SETUP: G28 → attach dispenser → jog tip to priming pad → run")
+        self.comment("SETUP: G28 -> attach dispenser -> jog XY over priming pad,")
+        self.comment("       jog Z down until tip just touches pad surface -> run")
         self.comment()
-        self.raw("G91")   # relative positioning for all dispense moves
+        self.raw("G91")   # relative positioning -- stays active until park
+        self.raise_to_travel("safety raise -- normalise Z from jog position to travel height")
 
     def prime(self):
         c = self.cfg
-        self.comment("── Prime ──────────────────────────────────────────────────")
-        # Go straight to dispense height — no intermediate contact stop
-        self.lower_to_dispense("lower to prime")
+        self.comment()
+        self.comment("-- Prime ----------------------------------------------------------")
+        self.lower_to_dispense("lower to prime position")
         self.shell_cmd("prime", _f(c.prime_volume_ul), int(c.dispenser_hz),
-                       comment=f"prime {c.prime_volume_ul} µL")
+                       comment=f"prime {c.prime_volume_ul} uL")
         self.dwell(c.prime_dwell_ms, "let paste settle")
         self.retract_paste()
         self.raise_to_travel()
@@ -145,14 +153,13 @@ class GCodeBuilder:
 
     def dispense_dot(self, pad: Pad, index: int):
         c = self.cfg
-        self.comment(f"── Pad {index:03d} DOT  ({_f(pad.center_x)}, {_f(pad.center_y)})"
-                     f"  {_f(pad.width)}×{_f(pad.height)} mm")
-        self.move(x=pad.center_x, y=pad.center_y,
-                  speed=c.travel_speed, comment="travel")
+        self.comment(f"-- Pad {index:03d} DOT  ({_f(pad.center_x)}, {_f(pad.center_y)})"
+                     f"  {_f(pad.width)}x{_f(pad.height)} mm")
+        self.move_xy(pad.center_x, pad.center_y, c.travel_speed, comment="travel")
         self.lower_to_dispense()
         self.deretract_paste()
         self.shell_cmd("dispense", _f(c.dot_volume_ul), int(c.dispenser_hz),
-                       comment=f"{c.dot_volume_ul} µL")
+                       comment=f"{c.dot_volume_ul} uL")
         self.dwell(c.dot_dwell_ms, "dwell")
         self.retract_paste()
         self.raise_to_travel()
@@ -160,28 +167,18 @@ class GCodeBuilder:
 
     def dispense_drag(self, pad: Pad, index: int):
         c = self.cfg
-        drag_len = _dist(pad.start_x, pad.start_y, pad.end_x, pad.end_y)
-
-        # Volume of paste to extrude during the drag, converted to plunger mm
-        import math as _math
-        syringe_area = _math.pi * (c.syringe_id_mm / 2) ** 2
+        drag_len     = _dist(pad.start_x, pad.start_y, pad.end_x, pad.end_y)
+        syringe_area = math.pi * (c.syringe_id_mm / 2) ** 2
         extrude_mm   = (drag_len * c.drag_ul_per_mm) / syringe_area
 
-        self.comment(f"── Pad {index:03d} DRAG ({_f(pad.start_x)},{_f(pad.start_y)})"
-                     f"→({_f(pad.end_x)},{_f(pad.end_y)})  len={_f(drag_len)} mm")
-
-        # Travel to drag start
-        self.move(x=pad.start_x, y=pad.start_y,
-                  speed=c.travel_speed, comment="travel to drag start")
+        self.comment(f"-- Pad {index:03d} DRAG ({_f(pad.start_x)},{_f(pad.start_y)})"
+                     f"->({_f(pad.end_x)},{_f(pad.end_y)})  len={_f(drag_len)} mm")
+        self.move_xy(pad.start_x, pad.start_y, c.travel_speed, comment="travel to drag start")
         self.lower_to_dispense()
         self.deretract_paste()
 
-        # The dispense_drag shell command is a single blocking call.
-        # It runs the motor for the full extrude distance while Klipper
-        # simultaneously executes the G1 drag move on the next line.
-        # Both finish in roughly the same time if speeds are matched.
         self.shell_cmd("dispense_drag", _f(extrude_mm), int(c.dispenser_hz),
-                       comment=f"extrude {drag_len:.2f} mm drag")
+                       comment=f"extrude for {_f(drag_len)} mm drag")
         dx = pad.end_x - pad.start_x
         dy = pad.end_y - pad.start_y
         self.lines.append(
@@ -190,16 +187,15 @@ class GCodeBuilder:
         self._cx = pad.end_x
         self._cy = pad.end_y
 
-        self.dwell(100, "dwell")
+        self.dwell(c.dot_dwell_ms, "dwell")
         self.retract_paste()
         self.raise_to_travel()
         self.comment()
 
     def park(self):
         c = self.cfg
-        self.comment("── Done ───────────────────────────────────────────────────")
-        self.raise_to_travel("final raise")
-        self.raw("G90")   # back to absolute for deterministic park
+        self.comment("-- Done -----------------------------------------------------------")
+        self.raw("G90")   # back to absolute for a deterministic park position
         self.raw(f"G0 X{_f(c.park_x)} Y{_f(c.park_y)} Z{_f(c.park_z)}"
                  f" F{int(c.travel_speed)}   ; park")
         self.comment("Dispense complete.")
@@ -219,7 +215,7 @@ def generate_gcode(
     Generate a complete G-code file and write it to output_path.
     Returns the G-code string.
     """
-    active = [p for p in ordered_pads if not p.blacklisted]
+    active  = [p for p in ordered_pads if not p.blacklisted]
     builder = GCodeBuilder(cfg)
 
     builder.header(len(active))
@@ -237,6 +233,6 @@ def generate_gcode(
     with open(output_path, "w") as f:
         f.write(gcode)
 
-    print(f"[info] G-code written → {output_path}"
+    print(f"[info] G-code written -> {output_path}"
           f"  ({len(active)} pads, {len(gcode.splitlines())} lines)")
     return gcode

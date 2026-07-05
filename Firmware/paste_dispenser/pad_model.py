@@ -83,7 +83,7 @@ class DispenserConfig:
 
     # ── Z positions (relative to manual tip home) ─────────────────────────────
     z_travel:          float = 5.0      # safe XY travel height (mm above home)
-    z_dispense:        float = -5.05    # offset from 3DP nozzle to paste tip
+    z_dispense:        float = -0.05    # dispensing height (relative to manual home)
 
     # ── Dispenser volumes and distances ───────────────────────────────────────
     prime_volume_ul:   float = 3.0      # µL to prime
