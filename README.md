@@ -44,6 +44,14 @@ Well, maybe there is a good reason that this isn't so widespread. In any case, I
 
 Assembly video coming soon! For now, please reference the CAD design to see how everything fits together :)
 
+<img width="730" height="816" alt="Screenshot 2026-07-05 170707" src="https://github.com/user-attachments/assets/d9b61ce7-9efc-4d83-b72e-3e5dc87bb6bf" />
+
+<img width="744" height="724" alt="Screenshot 2026-07-05 170720" src="https://github.com/user-attachments/assets/20185c87-8dc3-46e0-9b7b-bbc7afbe2f49" />
+
+<img width="733" height="803" alt="Screenshot 2026-07-05 170752" src="https://github.com/user-attachments/assets/1afb2c95-33f8-40b9-bb32-e753d16adc56" />
+
+<img width="1538" height="1142" alt="SBSPD_Wiring" src="https://github.com/user-attachments/assets/8432a11b-13f4-4a3a-8312-776f0a221dba" />
+
 ## Bill of Materials
 
 | Part         | Link                                                                    | Price  | Notes                                                     |
